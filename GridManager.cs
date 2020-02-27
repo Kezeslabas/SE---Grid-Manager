@@ -1,3 +1,14 @@
+//Planned Features:
+// - Color Coded Main Screen
+// - Sorter Manager
+// - Tag Manager
+// - Mode Manager
+// - Event Manager
+// - Rotor & Piston Manager
+// - Usefull Screens
+
+//Fixable Issues:
+
 //Grid Manager by Kezeslabas V3.0
 // These are a couple of usefull scripts that I made for my personal use that I grouped together for easier access.
 
@@ -6,7 +17,7 @@
 // - Sorter Manager [WIP]
 // - Tag Manager [WIP]
 // - Mode Manager [WIP]
-// - Event Watcher [WIP]
+// - Event Manager [WIP]
 // - Rotor & Piston Manager [WIP]
 // - Usefull Screens [WIP]
 
@@ -49,6 +60,8 @@
 
 
 //Generic Data
+bool ImSet=false;
+string MyTag="";
 sbyte ImRunning=0;
 bool AirlockIsRunning=false;
 
@@ -82,6 +95,7 @@ public class ScreenMessage
     string LastMessage2;
     string Report;
     string Header;
+    string SubHeader;
 
     IMyTextSurface MyScreen;
 
@@ -95,10 +109,11 @@ public class ScreenMessage
         LastMessage2="";
         Report="";
         Header="";
+        SubHeader="";
     }
     public void New(IMyTextSurface _surface)
     {
-        Message="Grid Manager by Kezeslabas\n[System]: Welcome!";
+        Message="Grid Manager by Kezeslabas";
         Script="";
         RunCount=0;
 
@@ -106,6 +121,7 @@ public class ScreenMessage
         LastMessage2="";
         Report="";
         Header="";
+        SubHeader="";
 
         MyScreen=_surface;
         MyScreen.ContentType=ContentType.TEXT_AND_IMAGE;
@@ -119,14 +135,14 @@ public class ScreenMessage
     {
         Report+=_report+"\n";
     }
-    public void AddHeader(string _header)
+    public void AddSubHeader(string _subHeader)
     {
-        Header+=_header+"\n";
+        SubHeader+=_subHeader+"\n";
     }
     public void Update()
     {
-        MyScreen.WriteText(Header+Message+"\n"+LastMessage+"\n"+LastMessage2);
-        Header="";
+        MyScreen.WriteText(Header+SubHeader+Message+"\n"+LastMessage+"\n"+LastMessage2);
+        SubHeader="";
     }
     public void Continue()
     {
@@ -135,6 +151,10 @@ public class ScreenMessage
         Report="";
         RunCount++;
     }
+    public void SetHeader(string _header)
+    {
+        Header="[Grid]: "+_header+"\n";
+    }
 }
 
 public class MyArgumentDecoder
@@ -142,15 +162,19 @@ public class MyArgumentDecoder
     public ScriptType Script;
     public string Command;
     public string[] ArgData;
+    public string Argument;
 
     string _CurrentString;
 
     public MyArgumentDecoder()
     {
-
+        Script=ScriptType.NONE;
+        Command="";
+        Argument="";
     }
     public bool GetArgument(string _arg)
     {
+        Argument=_arg;
         _CurrentString= _arg.Split(';')[0];
         _CurrentString=_CurrentString.ToLower();
         ArgData=_arg.Split(';');
@@ -195,7 +219,8 @@ public enum ScriptType
     AIRLOCK,
     RPMANAGER,
     SORTER,
-    SET
+    SET,
+    NONE
 }
 
 //Start of Program
@@ -207,6 +232,9 @@ public Program()
     if(!GetConfig())ResetConfig();
 
     LoadData();
+
+    if(ImSet)SetGrid(true);
+    else MyMessage.AddSubHeader("[System]: Welcome!\nPlease name your grid!\n( set;/Grid Name/ )");
 
     MyMessage.Update();
 }
@@ -220,37 +248,76 @@ public void Main(string argument, UpdateType updateSource)
 {
     if((updateSource & UpdateType.Update10)!=0)
     {
-        if(AirlockIsRunning)UpdateAirlocks();
+        if(ImRunning>0)
+        {
+            if(ImSet)
+            {
+                if(AirlockIsRunning)UpdateAirlocks();
+            }
+            else
+            {
+                StopScript();
+            }
+        }
+        else PauseScript();
     }
     else
     {
         MyMessage.Continue();
-        if(ArgumentDecoder.GetArgument(argument))
+        if(ImSet)
         {
-            if(ArgumentDecoder.Script==ScriptType.AIRLOCK)
+            if(ArgumentDecoder.GetArgument(argument))
             {
-                MyMessage.Script="Airlock";
-                RunAirlockScript();
+                if(ArgumentDecoder.Script==ScriptType.AIRLOCK)
+                {
+                    SetScript("Airlock");
+                    RunAirlockScript();
+                }
+                else if(ArgumentDecoder.Script==ScriptType.TAG)
+                {
+                    SetScript("Tag");
+                    RunTagScript();
+                }
+                else if(ArgumentDecoder.Script==ScriptType.SORTER)
+                {
+                    SetScript("Sorter");
+                    RunSorterScript();
+                }
+                else if(ArgumentDecoder.Script==ScriptType.RPMANAGER)
+                {
+                    SetScript("RP Manager");
+                    RunRpManagerScript();
+                }
+                else if(ArgumentDecoder.Script==ScriptType.SET)
+                {
+                    SetScript("System");
+                    SetGrid();
+                }
             }
-            else if(ArgumentDecoder.Script==ScriptType.TAG)
+            else
             {
-                MyMessage.Script="Tag";
-                RunTagScript();
+                SetScript("System");
+                MyMessage.AddReport("[Warning]: Incorrect Argument!");
             }
-            else if(ArgumentDecoder.Script==ScriptType.SORTER)
+        }
+        else
+        {
+            if(ArgumentDecoder.GetArgument(argument))
             {
-                MyMessage.Script="Sorter";
-                RunSorterScript();
+                SetScript("System");
+                if(ArgumentDecoder.Script==ScriptType.SET)
+                {
+                    SetGrid();
+                }
+                else
+                {
+                    MyMessage.AddReport("[Warning]: System must be named first!\n( set;/Grid Name/ )");
+                }
             }
-            else if(ArgumentDecoder.Script==ScriptType.RPMANAGER)
+            else
             {
-                MyMessage.Script="RP Manager";
-                RunRpManagerScript();
-            }
-            else if(ArgumentDecoder.Script==ScriptType.SET)
-            {
-                MyMessage.Script="System";
-                SetGrid();
+                SetScript("System");
+                MyMessage.AddReport("[Warning]: System must be named first!\n( set;/Grid Name/ )");
             }
         }
         MyMessage.ConstructMsg();
@@ -398,22 +465,30 @@ public void RunAirlockScript()
         for(_i=0;_i<_Doors.Count;_i++)
         {
             _Door=_Doors[_i];
-            if(_Door.CustomName.Contains(_Airlock.Name))
+            if(_Door.CustomName.Contains(_Airlock.Name) && _Door.CustomName.Contains(MyTag))
             {
                 if(_Door.CustomName.Contains(_Airlock.Side))_Airlock.OpenDoors.Add(_Door);
                 else _Airlock.CloseDoors.Add(_Door);
             }
         }
 
-        if(_Airlock.OpenDoors.Count>0 && _Airlock.CloseDoors.Count>0)
+        if(_Airlock.OpenDoors.Count>0)
         {
-            Airlocks.Add(_Airlock);
-            MyMessage.AddReport("[Airlock]: "+_Airlock.Name+" | "+_Airlock.Side
-                                +"\n[Open]: "+_Airlock.OpenDoors.Count+" | [Close]: "+_Airlock.CloseDoors.Count);
+            if(_Airlock.CloseDoors.Count>0)
+            {
+                Airlocks.Add(_Airlock);
+                MyMessage.AddReport("[Airlock]: "+_Airlock.Name+" | "+_Airlock.Side
+                                    +"\n[Open]: "+_Airlock.OpenDoors.Count+" | [Close]: "+_Airlock.CloseDoors.Count);
+                
+                StartScript();
+                AirlockIsRunning=true;
+                UpdateAirlocks();
+            }
             
-            StartScript();
-            AirlockIsRunning=true;
-            UpdateAirlocks();
+        }
+        else if(_Airlock.CloseDoors.Count==0)
+        {
+            MyMessage.AddReport("[Warning]: Airlock not found!");
         }
     }
 }
@@ -424,7 +499,7 @@ public void UpdateAirlocks()
     {
         _Airlock=Airlocks[_i];
         _Airlock.Update();
-        if(!_Airlock.Remove)MyMessage.AddHeader(_Airlock.ConstructReport());
+        if(!_Airlock.Remove)MyMessage.AddSubHeader(_Airlock.ConstructReport());
     }
     for(_i=0;_i<Airlocks.Count;_i++)
     {
@@ -452,7 +527,7 @@ public void ReBuildAirlocks()
         for(_k=0;_k<_Doors.Count;_k++)
         {
             _Door=_Doors[_k];
-            if(_Door.CustomName.Contains(_Airlock.Name))
+            if(_Door.CustomName.Contains(_Airlock.Name) && _Door.CustomName.Contains(MyTag))
             {
                 if(_Door.CustomName.Contains(_Airlock.Side))
                 {
@@ -486,9 +561,24 @@ public void RunRpManagerScript()
 }
 
 //Generic
-public void SetGrid()
+public void SetGrid(bool auto=false)
 {
-
+    if(auto)
+    {
+        MyMessage.SetHeader(MyTag);
+    }
+    else if(ArgumentDecoder.ArgData.Length>=2)
+    {
+        MyTag=ArgumentDecoder.ArgData[1];
+        ImSet=true;
+        MyMessage.SetHeader(MyTag);
+        MyMessage.AddReport("[System]: Naming Completed!");
+        SaveData();
+    }
+    else
+    {
+        MyMessage.AddReport("[Warning]: Incorrect Argument!");
+    }
 }
 
 public void StartScript()
@@ -515,10 +605,22 @@ public void PauseScript()
     else ImRunning=0;
 }
 
+public void StopScript()
+{
+    ImRunning=0;
+    Runtime.UpdateFrequency = UpdateFrequency.None;
+    MyMessage.AddReport("[System]: Stopped");
+}
+
 public bool ComponentIsReady(IMyTerminalBlock _comp)
 {
    if(_comp==null || _comp.CubeGrid.GetCubeBlock(_comp.Position)==null)return false;
    else return true;
+}
+
+public void SetScript(string _scriptName)
+{
+    MyMessage.Script=_scriptName+" | "+ArgumentDecoder.Argument;
 }
 
 //Configuration and Storage
@@ -526,21 +628,25 @@ public void SaveData()
 {
     _Ini.Clear();
 
-    _Ini.Set("MyMessage","RunCount",MyMessage.RunCount);
-    _Ini.Set("Generic","ImRunning",ImRunning);
-
-    _Ini.Set("Generic","AirlockIsRunning",AirlockIsRunning);
-    if(AirlockIsRunning)
+    _Ini.Set("Generic","ImSet",ImSet);
+    if(ImSet)
     {
-        _result="";
-        for(_i=0;_i<Airlocks.Count;_i++)
-        {
-            _Airlock=Airlocks[_i];
-            _result+=_Airlock.Name+"\n"+_Airlock.Side+"\n";
-        }
-        _Ini.Set("Airlock","AirlockValues",_result);
-    }
+        _Ini.Set("Generic","MyTag",MyTag);
+        _Ini.Set("MyMessage","RunCount",MyMessage.RunCount);
+        _Ini.Set("Generic","ImRunning",ImRunning);
 
+        _Ini.Set("Generic","AirlockIsRunning",AirlockIsRunning);
+        if(AirlockIsRunning)
+        {
+            _result="";
+            for(_i=0;_i<Airlocks.Count;_i++)
+            {
+                _Airlock=Airlocks[_i];
+                _result+=_Airlock.Name+"\n"+_Airlock.Side+"\n";
+            }
+            _Ini.Set("Airlock","AirlockValues",_result);
+        }
+    }
     Storage=_Ini.ToString();
 
     MyMessage.AddReport("[System]: Data Saved");
@@ -555,28 +661,34 @@ public void LoadData(bool first=true)
     
     if(_IniResult.IsDefined && _IniResult.Success)
     {
-        if(!_Ini.Get("MyMessage","RunCount").TryGetUInt64(out MyMessage.RunCount))MyMessage.AddReport("[Load Error]: MyMessage.RunCount");
-
-        if(!_Ini.Get("Generic","ImRunning").TryGetSByte(out ImRunning))MyMessage.AddReport("[Load Error]: ImRunning");
-        else if(ImRunning>0)Runtime.UpdateFrequency = UpdateFrequency.Update10;
-        else Runtime.UpdateFrequency = UpdateFrequency.None;
-
-        if(!_Ini.Get("Generic","AirlockIsRunning").TryGetBoolean(out AirlockIsRunning))MyMessage.AddReport("[Load Error]: AirlockIsRunning");
-        else if(AirlockIsRunning)
+        if(!_Ini.Get("Generic","ImSet").TryGetBoolean(out ImSet))MyMessage.AddReport("[Load Error]: ImSet");
+        else if(ImSet)
         {
-            if(!_Ini.Get("Airlock","AirlockValues").TryGetString(out _result))MyMessage.AddReport("[Load Error]: AirlockValues");
-            else
+            if(!_Ini.Get("Generic","MyTag").TryGetString(out MyTag))MyMessage.AddReport("[Load Error]: MyTag");
+
+            if(!_Ini.Get("MyMessage","RunCount").TryGetUInt64(out MyMessage.RunCount))MyMessage.AddReport("[Load Error]: MyMessage.RunCount");
+
+            if(!_Ini.Get("Generic","ImRunning").TryGetSByte(out ImRunning))MyMessage.AddReport("[Load Error]: ImRunning");
+            else if(ImRunning>0)Runtime.UpdateFrequency = UpdateFrequency.Update10;
+            else Runtime.UpdateFrequency = UpdateFrequency.None;
+
+            if(!_Ini.Get("Generic","AirlockIsRunning").TryGetBoolean(out AirlockIsRunning))MyMessage.AddReport("[Load Error]: AirlockIsRunning");
+            else if(AirlockIsRunning)
             {
-                if(_result!="")
+                if(!_Ini.Get("Airlock","AirlockValues").TryGetString(out _result))MyMessage.AddReport("[Load Error]: AirlockValues");
+                else
                 {
-                    Airlocks.Clear();
-                    _data = _result.Split('\n');
-                    for(_i=1;_i<_data.Length;_i=_i+2)
+                    if(_result!="")
                     {
-                        Airlocks.Add(new MyAirlock(_data[_i-1],_data[_i]));
+                        Airlocks.Clear();
+                        _data = _result.Split('\n');
+                        for(_i=1;_i<_data.Length;_i=_i+2)
+                        {
+                            Airlocks.Add(new MyAirlock(_data[_i-1],_data[_i]));
+                        }
+                        ReBuildAirlocks();
+                        StartScript();
                     }
-                    ReBuildAirlocks();
-                    StartScript();
                 }
             }
         }
