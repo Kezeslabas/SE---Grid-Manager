@@ -8,6 +8,7 @@
 // - Usefull Screens
 
 //Fixable Issues:
+//  - RP Setter not changing stuff based on current Agnles and Positions
 
 //Grid Manager by Kezeslabas V3.0
 // These are a couple of usefull scripts that I made for my personal use that I grouped together for easier access.
@@ -18,7 +19,7 @@
 // - Tag Manager [WIP]
 // - Mode Manager [WIP]
 // - Event Manager [WIP]
-// - Rotor & Piston Manager [WIP]
+// - Rotor & Piston Setter [Not Ready]
 // - Usefull Screens [WIP]
 
 //Scirpt Notes:
@@ -69,6 +70,8 @@ bool AirlockIsRunning=false;
 int _i,_k;
 string _result;
 string[] _data;
+string _text;
+bool _test;
 
 MyIni _Ini = new MyIni();
 MyIniParseResult _IniResult;
@@ -84,6 +87,12 @@ List<IMyDoor> _Doors = new List<IMyDoor>();
 
 MyAirlock _Airlock = new MyAirlock();
 List<MyAirlock> Airlocks = new List<MyAirlock>();
+
+IMyMotorStator _Rotor;
+List<IMyMotorStator> _Rotors = new List<IMyMotorStator>();
+
+IMyPistonBase _Piston;
+List<IMyPistonBase> _Pistons = new List<IMyPistonBase>();
 
 public class ScreenMessage
 {
@@ -190,9 +199,9 @@ public class MyArgumentDecoder
                 Script=ScriptType.TAG;
                 return true;
             }
-            case "rpmanager":
+            case "rpsetter":
             {
-                Script=ScriptType.RPMANAGER;
+                Script=ScriptType.RPSETTER;
                 return true;
             }
             case "sorter":
@@ -217,7 +226,7 @@ public enum ScriptType
 {
     TAG,
     AIRLOCK,
-    RPMANAGER,
+    RPSETTER,
     SORTER,
     SET,
     NONE
@@ -283,10 +292,10 @@ public void Main(string argument, UpdateType updateSource)
                     SetScript("Sorter");
                     RunSorterScript();
                 }
-                else if(ArgumentDecoder.Script==ScriptType.RPMANAGER)
+                else if(ArgumentDecoder.Script==ScriptType.RPSETTER)
                 {
-                    SetScript("RP Manager");
-                    RunRpManagerScript();
+                    SetScript("RP Setter");
+                    RunRPSetterScript();
                 }
                 else if(ArgumentDecoder.Script==ScriptType.SET)
                 {
@@ -554,11 +563,74 @@ public void RunTagScript()
 
 }
 
-//Rotor Piston Script
-public void RunRpManagerScript()
+//Rotor Piston Setter Script
+public void RunRPSetterScript()
 {
+    _text = ArgumentDecoder.ArgData[1];
+    if(ArgumentDecoder.ArgData[2]=="+")_test=true;
+    else _test=false;
 
+    GridTerminalSystem.GetBlocksOfType<IMyMotorStator>(_Rotors);
+    for(_i=0;_i<_Rotors.Count;_i++)
+    {
+        _Rotor = _Rotors[_i];
+        if(_Rotor.CustomName.Contains(_text))
+        {
+            SetRotor(_Rotor,_test);
+        }
+    }
+    GridTerminalSystem.GetBlocksOfType<IMyPistonBase>(_Pistons);
+    for(_i=0;_i<_Pistons.Count;_i++)
+    {
+        _Piston = _Pistons[_i];
+        if(_Piston.CustomName.Contains(_text))
+        {
+            SetPiston(_Piston,_test);
+        }
+    }
 }
+
+public void SetRotor(IMyMotorStator R, bool dir)
+{
+    if(dir)
+    {
+        R.TargetVelocityRPM=1.5f;
+        R.UpperLimitDeg+=45f;
+        if(R.UpperLimitDeg>360f)
+        {
+            R.LowerLimitDeg = R.UpperLimitDeg-360f;
+        }
+        R.UpperLimitDeg = R.LowerLimitDeg;
+    }
+    else
+    {
+        R.TargetVelocityRPM=-1.5f;
+        R.LowerLimitDeg-=45f;
+        if(R.LowerLimitDeg<-360f)
+        {
+            R.UpperLimitDeg = R.LowerLimitDeg+360f;
+        }
+        R.LowerLimitDeg = R.UpperLimitDeg;
+    }
+}
+public void SetPiston(IMyPistonBase R, bool dir)
+{
+    if(dir)
+    {
+        R.Velocity=1f;
+        R.MaxLimit+=0.5f;
+        if(R.MaxLimit>R.HighestPosition)R.MaxLimit=R.HighestPosition;
+        R.MinLimit=R.MaxLimit;
+    }
+    else
+    {
+        R.Velocity=-1f;
+        R.MinLimit-=0.5f;
+        if(R.MinLimit>R.LowestPosition)R.MinLimit=R.LowestPosition;
+        R.MaxLimit=R.MinLimit;
+    }
+}
+
 
 //Generic
 public void SetGrid(bool auto=false)
