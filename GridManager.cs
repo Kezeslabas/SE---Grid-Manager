@@ -594,23 +594,39 @@ public void SetRotor(IMyMotorStator R, bool dir)
 {
     if(dir)
     {
-        R.TargetVelocityRPM=1.5f;
-        R.UpperLimitDeg+=45f;
+        if(R.TargetVelocityRPM>0)
+        {
+            R.TargetVelocityRPM=1.5f;
+            R.UpperLimitDeg+=45f;
+        }
+        else
+        {
+            R.TargetVelocityRPM=1.5f;
+            R.UpperLimitDeg = R.LowerLimitDeg + 45f;
+        }
         if(R.UpperLimitDeg>360f)
         {
-            R.LowerLimitDeg = R.UpperLimitDeg-360f;
+            R.LowerLimitDeg=0;
+            R.UpperLimitDeg=45;
         }
-        R.UpperLimitDeg = R.LowerLimitDeg;
     }
     else
     {
-        R.TargetVelocityRPM=-1.5f;
-        R.LowerLimitDeg-=45f;
-        if(R.LowerLimitDeg<-360f)
+        if(R.TargetVelocityRPM<0)
         {
-            R.UpperLimitDeg = R.LowerLimitDeg+360f;
+            R.TargetVelocityRPM=-1.5f;
+            R.LowerLimitDeg-=45f;
         }
-        R.LowerLimitDeg = R.UpperLimitDeg;
+        else
+        {
+            R.TargetVelocityRPM=-1.5f;
+            R.LowerLimitDeg = R.UpperLimitDeg - 45f;
+        }
+        if(R.LowerLimitDeg<0)
+        {
+            R.UpperLimitDeg=360;
+            R.LowerLimitDeg=315f;
+        }
     }
 }
 public void SetPiston(IMyPistonBase R, bool dir)
@@ -626,7 +642,7 @@ public void SetPiston(IMyPistonBase R, bool dir)
     {
         R.Velocity=-1f;
         R.MinLimit-=0.5f;
-        if(R.MinLimit>R.LowestPosition)R.MinLimit=R.LowestPosition;
+        if(R.MinLimit<R.LowestPosition)R.MinLimit=R.LowestPosition;
         R.MaxLimit=R.MinLimit;
     }
 }
