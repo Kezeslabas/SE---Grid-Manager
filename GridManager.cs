@@ -502,6 +502,8 @@ public void RunAirlockScript()
     }
 }
 
+//ADQWEASDQWE
+
 public void UpdateAirlocks()
 {
     for(_i=0;_i<Airlocks.Count;_i++)
